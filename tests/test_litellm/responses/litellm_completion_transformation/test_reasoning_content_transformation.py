@@ -11,8 +11,10 @@ from litellm.responses.litellm_completion_transformation.transformation import (
     LiteLLMCompletionResponsesConfig,
 )
 from litellm.types.utils import (
+    ChatCompletionMessageToolCall,
     Choices,
     Delta,
+    Function,
     Message,
     ModelResponse,
     ModelResponseStream,
@@ -180,7 +182,7 @@ class TestReasoningContentFinalResponse:
 
         reasoning_item = reasoning_items[0]
         assert (
-            reasoning_item.content[0].text
+            reasoning_item.summary[0].text
             == "Let me think step by step about this problem..."
         )
 
@@ -261,7 +263,7 @@ class TestReasoningContentFinalResponse:
             item for item in responses_api_response.output if item.type == "reasoning"
         ]
         assert len(reasoning_items) == 1, "Should have exactly one reasoning item"
-        assert reasoning_items[0].content[0].text == "Reasoning for first answer"
+        assert reasoning_items[0].summary[0].text == "Reasoning for first answer"
 
 
 def test_codex_reasoning_item_is_attached_to_following_tool_call():
@@ -320,6 +322,79 @@ def test_codex_reasoning_summary_is_attached_to_following_assistant_message():
     assert messages[1]["role"] == "assistant"
     assert messages[1]["reasoning_content"] == "I inspected the diff."
     assert messages[1]["content"] == [{"type": "text", "text": "One file changed."}]
+
+
+def test_codex_two_round_tool_call_replays_deepseek_reasoning():
+    first_round = ModelResponse(
+        id="chatcmpl_1",
+        created=1234567890,
+        model="deepseek-v4-pro",
+        object="chat.completion",
+        choices=[
+            Choices(
+                finish_reason="tool_calls",
+                index=0,
+                message=Message(
+                    role="assistant",
+                    content="I will inspect the file.",
+                    reasoning_content="I need to read the file before editing it.",
+                    tool_calls=[
+                        ChatCompletionMessageToolCall(
+                            id="call_1",
+                            type="function",
+                            function=Function(
+                                name="read_file",
+                                arguments='{"path":"README.md"}',
+                            ),
+                        )
+                    ],
+                ),
+            )
+        ],
+    )
+    response = LiteLLMCompletionResponsesConfig.transform_chat_completion_response_to_responses_api_response(
+        request_input="Inspect README.md",
+        responses_api_request={},
+        chat_completion_response=first_round,
+    )
+
+    assert [item.type for item in response.output] == [
+        "reasoning",
+        "function_call",
+        "message",
+    ]
+    reasoning_item = response.output[0].model_dump(exclude_none=True)
+    assert reasoning_item["summary"] == [
+        {
+            "type": "summary_text",
+            "text": "I need to read the file before editing it.",
+        }
+    ]
+    assert "content" not in reasoning_item
+
+    second_round_input = [
+        item.model_dump(exclude_none=True) for item in response.output
+    ] + [
+        {
+            "type": "function_call_output",
+            "call_id": "call_1",
+            "output": "README contents",
+        }
+    ]
+    second_round_messages = LiteLLMCompletionResponsesConfig.transform_responses_api_input_to_messages(
+        input=second_round_input,
+        responses_api_request={},
+    )
+
+    assistant_message = second_round_messages[0]
+    assert assistant_message["role"] == "assistant"
+    assert assistant_message["reasoning_content"] == "I need to read the file before editing it."
+    assert assistant_message["tool_calls"][0]["id"] == "call_1"
+    assert second_round_messages[1] == {
+        "role": "tool",
+        "tool_call_id": "call_1",
+        "content": "README contents",
+    }
 
 
 def test_streaming_chunk_id_raw():

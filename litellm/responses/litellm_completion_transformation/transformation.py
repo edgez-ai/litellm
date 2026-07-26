@@ -7,7 +7,8 @@ import re
 from collections.abc import Sequence
 from typing import Any, Literal, cast
 
-from openai.types.responses import ResponseFunctionToolCall
+from openai.types.responses import ResponseFunctionToolCall, ResponseReasoningItem
+from openai.types.responses.response_reasoning_item import Summary
 from openai.types.responses.response_create_params import ResponseInputParam
 from openai.types.responses.tool_param import FunctionToolParam
 from typing_extensions import TypedDict
@@ -1692,6 +1693,7 @@ class LiteLLMCompletionResponsesConfig:
         | OutputFunctionToolCall
         | OutputImageGenerationCall
         | ResponseFunctionToolCall
+        | ResponseReasoningItem
         | CustomToolCallOutputItem
     ]:
         responses_output: list[
@@ -1700,6 +1702,7 @@ class LiteLLMCompletionResponsesConfig:
             | OutputFunctionToolCall
             | OutputImageGenerationCall
             | ResponseFunctionToolCall
+            | ResponseReasoningItem
             | CustomToolCallOutputItem
         ] = []
 
@@ -1707,13 +1710,13 @@ class LiteLLMCompletionResponsesConfig:
             LiteLLMCompletionResponsesConfig._extract_reasoning_output_items(chat_completion_response, choices)
         )
         responses_output.extend(
-            LiteLLMCompletionResponsesConfig._extract_message_output_items(chat_completion_response, choices)
-        )
-        responses_output.extend(
             LiteLLMCompletionResponsesConfig.transform_chat_completion_tools_to_responses_tools(
                 chat_completion_response=chat_completion_response,
                 responses_api_request=responses_api_request,
             )
+        )
+        responses_output.extend(
+            LiteLLMCompletionResponsesConfig._extract_message_output_items(chat_completion_response, choices)
         )
 
         # Convert server-side tool results (e.g. Anthropic code execution)
@@ -1772,25 +1775,22 @@ class LiteLLMCompletionResponsesConfig:
     def _extract_reasoning_output_items(
         chat_completion_response: ModelResponse,
         choices: list[Choices],
-    ) -> list[GenericResponseOutputItem]:
+    ) -> list[ResponseReasoningItem]:
         for choice in choices:
             if hasattr(choice, "message") and choice.message:
                 message = choice.message
                 if hasattr(message, "reasoning_content") and message.reasoning_content:
-                    # Only check the first choice for reasoning content
                     return [
-                        GenericResponseOutputItem(
+                        ResponseReasoningItem(
                             type="reasoning",
                             id=f"rs_{hash(str(message.reasoning_content))}",
                             status=LiteLLMCompletionResponsesConfig._map_chat_completion_finish_reason_to_responses_status(
                                 choice.finish_reason
                             ),
-                            role="assistant",
-                            content=[
-                                OutputText(
-                                    type="output_text",
+                            summary=[
+                                Summary(
+                                    type="summary_text",
                                     text=message.reasoning_content,
-                                    annotations=[],
                                 )
                             ],
                         )
