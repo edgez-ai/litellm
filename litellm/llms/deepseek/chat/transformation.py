@@ -126,10 +126,13 @@ class DeepSeekChatConfig(OpenAIGPTConfig):
 
     def _thinking_mode_active(self, model: str, optional_params: dict) -> bool:
         """
-        Returns True only when thinking mode is actually active for this request:
-          - model supports reasoning (capability check)
-          - user explicitly passed thinking={"type": "enabled"} (opt-in check)
+        DeepSeek V4 enables thinking by default. Reasoning-capable models therefore
+        require reasoning history unless thinking is explicitly disabled.
         """
+        if (optional_params.get("thinking") or {}).get("type") == "disabled":
+            return False
+        if "deepseek-v4-" in model.lower():
+            return True
         return (
             supports_reasoning(model=model, custom_llm_provider="deepseek")
             and (optional_params.get("thinking") or {}).get("type") == "enabled"

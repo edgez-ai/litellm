@@ -264,6 +264,64 @@ class TestReasoningContentFinalResponse:
         assert reasoning_items[0].content[0].text == "Reasoning for first answer"
 
 
+def test_codex_reasoning_item_is_attached_to_following_tool_call():
+    messages = LiteLLMCompletionResponsesConfig.transform_responses_api_input_to_messages(
+        input=[
+            {"role": "user", "content": "Inspect the repository"},
+            {
+                "type": "reasoning",
+                "id": "rs_1",
+                "content": [{"type": "output_text", "text": "I should list the files first."}],
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_1",
+                "name": "shell",
+                "arguments": '{"command":"ls"}',
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_1",
+                "output": "README.md",
+            },
+        ],
+        responses_api_request={},
+    )
+
+    assert messages[1]["role"] == "assistant"
+    assert messages[1]["reasoning_content"] == "I should list the files first."
+    assert messages[1]["tool_calls"][0]["function"]["name"] == "shell"
+    assert messages[2] == {
+        "role": "tool",
+        "tool_call_id": "call_1",
+        "content": "README.md",
+    }
+
+
+def test_codex_reasoning_summary_is_attached_to_following_assistant_message():
+    messages = LiteLLMCompletionResponsesConfig.transform_responses_api_input_to_messages(
+        input=[
+            {"role": "user", "content": "What changed?"},
+            {
+                "type": "reasoning",
+                "id": "rs_1",
+                "summary": [{"type": "summary_text", "text": "I inspected the diff."}],
+            },
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "One file changed."}],
+            },
+            {"role": "user", "content": "Which one?"},
+        ],
+        responses_api_request={},
+    )
+
+    assert messages[1]["role"] == "assistant"
+    assert messages[1]["reasoning_content"] == "I inspected the diff."
+    assert messages[1]["content"] == [{"type": "text", "text": "One file changed."}]
+
+
 def test_streaming_chunk_id_raw():
     """Test that streaming chunk IDs are raw (not encoded) to match OpenAI format"""
     chunk = ModelResponseStream(

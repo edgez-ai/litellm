@@ -101,3 +101,44 @@ async def test_async_transform_request_strips_unsupported_tools_from_body():
 
     assert [tool["type"] for tool in body["tools"]] == ["function"]
     assert body["tools"][0]["function"]["name"] == "shell"
+
+
+def test_v4_pro_default_thinking_fills_reasoning_content():
+    body = DeepSeekChatConfig().transform_request(
+        model="deepseek-v4-pro",
+        messages=[
+            {"role": "user", "content": "Inspect the repository"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "shell", "arguments": '{"command":"ls"}'},
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_1", "content": "README.md"},
+        ],
+        optional_params={},
+        litellm_params={},
+        headers={},
+    )
+
+    assert body["messages"][1]["reasoning_content"] == " "
+
+
+def test_v4_pro_disabled_thinking_does_not_fill_reasoning_content():
+    body = DeepSeekChatConfig().transform_request(
+        model="deepseek-v4-pro",
+        messages=[
+            {"role": "user", "content": "Inspect the repository"},
+            {"role": "assistant", "content": "Done"},
+        ],
+        optional_params={"thinking": {"type": "disabled"}},
+        litellm_params={},
+        headers={},
+    )
+
+    assert "reasoning_content" not in body["messages"][1]

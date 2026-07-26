@@ -23,6 +23,7 @@ from litellm.responses.litellm_completion_transformation.session_handler import 
 )
 from litellm.types.llms.openai import (
     AllMessageValues,
+    ChatCompletionAssistantMessage,
     ChatCompletionImageObject,
     ChatCompletionImageUrlObject,
     ChatCompletionResponseMessage,
@@ -436,6 +437,18 @@ class LiteLLMCompletionResponsesConfig:
                                     for tc in new_tcs:
                                         LiteLLMCompletionResponsesConfig._add_tool_call_to_assistant(last_msg, tc)
                             continue
+
+                if messages and _input.get("role") == "assistant":
+                    last_msg = messages[-1]
+                    if (
+                        last_msg.get("role") == "assistant"
+                        and last_msg.get("reasoning_content")
+                        and last_msg.get("content") is None
+                    ):
+                        for new_msg in chat_completion_messages:
+                            if new_msg.get("role") == "assistant":
+                                last_msg["content"] = new_msg.get("content")
+                        continue
 
                 #########################################################
                 # If Input Item is a Tool Call Output, add it to the tool_call_output_messages list
@@ -886,6 +899,17 @@ class LiteLLMCompletionResponsesConfig:
                     tool_call_output=input_item
                 )
             )
+        elif LiteLLMCompletionResponsesConfig._is_input_item_reasoning(input_item):
+            reasoning_content = LiteLLMCompletionResponsesConfig._extract_responses_api_reasoning_content(input_item)
+            if not reasoning_content:
+                return []
+            return [
+                ChatCompletionAssistantMessage(
+                    role="assistant",
+                    content=None,
+                    reasoning_content=reasoning_content,
+                )
+            ]
         elif LiteLLMCompletionResponsesConfig._is_input_item_function_call(input_item):
             # handle function call input items
             return LiteLLMCompletionResponsesConfig._transform_responses_api_function_call_to_chat_completion_message(
@@ -918,6 +942,21 @@ class LiteLLMCompletionResponsesConfig:
             "computer_call_output",
             "tool_result",  # Anthropic/MCP format
         ]
+
+    @staticmethod
+    def _is_input_item_reasoning(input_item: Any) -> bool:
+        return input_item.get("type") == "reasoning"
+
+    @staticmethod
+    def _extract_responses_api_reasoning_content(input_item: Any) -> str:
+        content = input_item.get("content")
+        summary = input_item.get("summary")
+        parts = content if isinstance(content, list) and content else summary
+        if not isinstance(parts, list):
+            return ""
+        return "".join(
+            part.get("text", "") for part in parts if isinstance(part, dict) and isinstance(part.get("text"), str)
+        )
 
     @staticmethod
     def _is_input_item_function_call(input_item: Any) -> bool:
