@@ -63,6 +63,7 @@ except (ImportError, AttributeError):
     )
 
 from openai.types.responses import ResponseFunctionToolCall
+from openai.types.responses.response_reasoning_item import ResponseReasoningItem
 from openai.types.responses.response_create_params import (
     Reasoning,
     ResponseIncludable,
@@ -1260,6 +1261,7 @@ class ResponsesAPIResponse(BaseLiteLLMOpenAIResponseObject):
                 OutputFunctionToolCall,
                 OutputImageGenerationCall,
                 ResponseFunctionToolCall,
+                ResponseReasoningItem,
                 CustomToolCallOutputItem,
             ]
         ],

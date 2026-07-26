@@ -319,11 +319,10 @@ class TestLiteLLMCompletionResponsesConfig:
                 "rs_"
             ), f"Expected ID to start with 'rs_', got: {reasoning_item.id}"
         assert reasoning_item.status == "completed"
-        assert reasoning_item.role == "assistant"
-        assert len(reasoning_item.content) == 1
-        assert reasoning_item.content[0].type == "output_text"
-        assert "step by step" in reasoning_item.content[0].text
-        assert "42" in reasoning_item.content[0].text
+        assert len(reasoning_item.summary) == 1
+        assert reasoning_item.summary[0].type == "summary_text"
+        assert "step by step" in reasoning_item.summary[0].text
+        assert "42" in reasoning_item.summary[0].text
 
         message_items = [
             item for item in responses_api_response.output if item.type == "message"
@@ -415,7 +414,7 @@ class TestLiteLLMCompletionResponsesConfig:
             item for item in responses_api_response.output if item.type == "reasoning"
         ]
         assert len(reasoning_items) == 1, "Should have exactly one reasoning item"
-        assert reasoning_items[0].content[0].text == "First reasoning process."
+        assert reasoning_items[0].summary[0].text == "First reasoning process."
 
         message_items = [
             item for item in responses_api_response.output if item.type == "message"
