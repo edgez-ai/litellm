@@ -443,8 +443,8 @@ class LiteLLMCompletionResponsesConfig:
                     last_msg = messages[-1]
                     if (
                         last_msg.get("role") == "assistant"
-                        and last_msg.get("reasoning_content")
                         and last_msg.get("content") is None
+                        and (last_msg.get("reasoning_content") or last_msg.get("tool_calls"))
                     ):
                         for new_msg in chat_completion_messages:
                             if new_msg.get("role") == "assistant":

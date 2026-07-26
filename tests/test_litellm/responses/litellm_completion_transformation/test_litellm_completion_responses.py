@@ -2413,6 +2413,40 @@ class TestStreamingIDConsistency:
         )
         assert tool_calls is not None and len(tool_calls) == 1
 
+    def test_assistant_preamble_after_tool_call_is_merged_before_tool_output(self):
+        input_items = [
+            {"type": "message", "role": "user", "content": "Inspect the workspace"},
+            {
+                "type": "function_call",
+                "call_id": "call_01",
+                "name": "exec_command",
+                "arguments": '{"cmd":"ls -la"}',
+            },
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": "I will inspect the workspace first.",
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_01",
+                "output": "README.md",
+            },
+        ]
+
+        messages = LiteLLMCompletionResponsesConfig._transform_response_input_param_to_chat_completion_message(
+            input=input_items
+        )
+
+        assert [message["role"] for message in messages] == [
+            "user",
+            "assistant",
+            "tool",
+        ]
+        assert messages[1]["content"] == "I will inspect the workspace first."
+        assert messages[1]["tool_calls"][0]["id"] == "call_01"
+        assert messages[2]["tool_call_id"] == "call_01"
+
 
 class TestCompletedResponseLatchedOnStreamEnd:
     """Regression: LiteLLMCompletionStreamingIterator (the Chat Completions
