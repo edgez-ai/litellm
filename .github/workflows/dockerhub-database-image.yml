@@ -2,12 +2,6 @@ name: Build and Push LiteLLM Database Image
 
 on:
   workflow_dispatch:
-    inputs:
-      branch:
-        description: LiteLLM branch to build
-        required: true
-        default: litellm_deepseek_v4_pro_codex_adapter
-        type: string
 
 permissions:
   contents: read
@@ -19,17 +13,16 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - name: Checkout selected branch
+      - name: Checkout selected ref
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ inputs.branch }}
           persist-credentials: false
 
       - name: Resolve image tag
         id: image
         shell: bash
         env:
-          BRANCH: ${{ inputs.branch }}
+          BRANCH: ${{ github.ref_name }}
         run: |
           safe_branch="$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_.-]/-/g; s/^[.-]//')"
           if [ -z "$safe_branch" ]; then
